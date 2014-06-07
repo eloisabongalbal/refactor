@@ -1,0 +1,352 @@
+<% on_hand_origin_timestamp = 0 %>
+<% pickup_confirmed_timestamp = 0 %>
+<% on_hand_destination_timestamp = 0 %>
+<% due_date_due_time_timestamp = DateTime.parse("#{@hawb.duedate} #{@hawb.duetime}") %>
+<% due_date_due_time_timestamp.change(:offset => DateTime.now.in_time_zone(@hawb.destination.timezone.strip).strftime('%z')) %>
+<% tracked_at_exists = true %>
+<% @tracks.each do |tracking| %>
+    <% if tracking.tracked_at.nil? %>
+        <% tracked_at_exists = false %>
+    <% else %>
+        <% if tracking.statusid == 36 %>
+        	<% on_hand_origin_timestamp = tracking.tracked_at.in_time_zone(tracking.time_zone) %>
+        <% elsif tracking.statusid == 42 %>
+        	<% pickup_confirmed_timestamp = tracking.tracked_at.in_time_zone(tracking.time_zone) %>
+        <% elsif tracking.statusid == 34 %>
+        	<% on_hand_destination_timestamp = tracking.tracked_at.in_time_zone(tracking.time_zone) %>
+        <% end -%>        
+    <% end -%>
+<% end -%>
+<script type="text/javascript" charset="utf-8">
+	<% if on_hand_origin_timestamp != 0 %>
+		var onHandOrigin = new Date('<%= on_hand_origin_timestamp.year %>', '<%= on_hand_origin_timestamp.month %>', '<%= on_hand_origin_timestamp.day %>', '<%= on_hand_origin_timestamp.hour %>', '<%= on_hand_origin_timestamp.min %>');
+	<% else %>
+		var onHandOrigin = '';
+	<% end -%>
+	<% if pickup_confirmed_timestamp != 0 %>
+		var pickUpConfirmed = new Date('<%= pickup_confirmed_timestamp.year %>', '<%= pickup_confirmed_timestamp.month %>', '<%= pickup_confirmed_timestamp.day %>', '<%= pickup_confirmed_timestamp.hour %>', '<%= pickup_confirmed_timestamp.min %>');
+	<% else %>
+		var pickUpConfirmed = '';
+	<% end -%>
+	var dueDateDueTime = new Date('<%= due_date_due_time_timestamp.year %>', '<%= due_date_due_time_timestamp.month %>', '<%= due_date_due_time_timestamp.day %>', '<%= due_date_due_time_timestamp.hour %>', '<%= due_date_due_time_timestamp.min %>');
+	<% if on_hand_destination_timestamp != 0 %>
+		var onHandDestination = new Date('<%= on_hand_destination_timestamp.year %>', '<%= on_hand_destination_timestamp.month %>', '<%= on_hand_destination_timestamp.day %>', '<%= on_hand_destination_timestamp.hour %>', '<%= on_hand_destination_timestamp.min %>');
+	<% else %>
+		var onHandDestination = '';
+	<% end -%>
+</script>
+<% statuses = @hawb.tracks.map{|i| i.statusid } %>
+<% conditions = "ID != 25 AND ID != 42" %>
+<% if statuses.include?(36) %>
+        <% conditions += " AND ID != 36" %>
+<% end -%>
+<% if statuses.include?(34) %>
+        <% conditions += " AND ID != 34" %>
+<% end -%>
+<%= render :partial => "shared/hawbs_header" %>
+<%= render :partial => "shared/modals/third_party_tracking_modal" %>
+<div class="row">
+	<div class="col-xs-12 col-sm-6 col-md-8">
+		<div class="row">
+			<div class="col-md-9">
+				<p>
+	    			<strong><%= @hawb.hawb %></strong> Tracking Details
+	   	 		</p>
+				<% if statuses.include?(36) && !statuses.include?(42) && !statuses.include?(17) %>
+					<%= link_to 'Pick Up Shipment', '#pick_up_shipment', :class => 'btn btn-info btn-sm', "data-toggle" => "tab" %>
+				<% else %>
+					<%= link_to 'Pick Up Shipment', "", :class => 'btn btn-info btn-sm', :disabled => 'true' %>
+				<% end %>
+
+				<% if !statuses.include?(17) %>
+					&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<%= link_to 'Update Shipment Tracking', '#update_shipment_tracking', :class => 'btn btn-info btn-sm', "data-toggle" => "tab" %>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+				<% else %>
+					&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<%= link_to 'Update Shipment Tracking', '', :class => 'btn btn-info btn-sm', :disabled => 'true' %>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+				<% end -%>
+
+				<% if statuses.include?(34) && !statuses.include?(25) && !statuses.include?(17) %>
+					<%= link_to 'Deliver Shipment', '#deliver_shipment', :class => 'btn btn-info btn-sm', "data-toggle" => "tab" %>
+				<% else %>
+					<%= link_to 'Deliver Shipment', '', :class => 'btn btn-info btn-sm', :disabled => 'true' %>
+				<% end %>
+				<br /><br />
+			</div>
+			<div class="col-md-3" style="text-align:right;">
+				<p>&nbsp;</p>
+				<% if !statuses.include?(17) %>
+					<%= link_to 'Attempted/Cancelled', '#attempted_cancelled', :class => 'btn btn-warning btn-sm', "data-toggle" => "tab" %>
+				<% else %>
+					<%= link_to 'Attempted/Cancelled', '', :class => 'btn btn-warning btn-sm', :disabled => 'true' %>
+				<% end -%>
+				<br /><br />
+			</div>
+		</div>
+		<div class="tab-content">
+			<div class="tab-pane active fade in" id="some_id"></div>
+			<div class="tab-pane fade" id="pick_up_shipment">
+				<%= form_for Tracking.new, :url => morgan_hawb_trackings_path(@hawb), :html => {:class=>"form-horizontal", :role=>"form"}, :method=>:post do |form| %>
+				<div class="well">
+					<h5>Picking Up Shipment</h5>
+				  	<div class="form-group">
+				    	<label for="hawb" class="col-sm-3 control-label">Event Time</label>
+				    	<div class="col-sm-9">
+				      		<%= form.datetime_select :eventtime, {:order=>[:month, :day, :year]}, {:class=>"form-control pick_up_eventtime", :id => "pick_up_eventtime", :style => "width:15%;display:inline;"} %>
+				      		<br />
+				      		<br />
+				    		<%= form.time_zone_select :time_zone, nil, {:default => @hawb.origin.timezone.strip}, {:class => 'form-control', :id => "pick_up_time_zone"} %>
+				    	</div>
+				  	</div>
+				  	<%= form.hidden_field :statusid, :value => "42" %>
+				  	<div class="form-group">
+				    	<label for="hawb" class="col-sm-3 control-label">Pick Up Wait Time</label>
+				    	<div class="col-sm-9">
+				    		<%= form.text_field :pickup_wait_time, :class => "form-control", :value => @hawb.pickup_wait_time, :id => "pick_up_wait_time" %>
+				    	</div>
+				  	</div>
+				  	<div class="form-group">
+				    	<label for="hawb" class="col-sm-3 control-label">Internal Remarks</label>
+				    	<div class="col-sm-9">
+				      		<%= form.text_field :remarks, :class=>"form-control", :id => "pick_up_internal_remarks" %>
+				    	</div>
+				  	</div>
+				  	<div class="form-group">
+				    	<label for="hawb" class="col-sm-3 control-label">Customer Remarks</label>
+				    	<div class="col-sm-9">
+				      		<%= form.text_field :customerremarks, :class=>"form-control", :id => "pick_up_customer_remarks" %>
+				    	</div>
+				  	</div>
+				  	<div class="form-group">
+				    	<label for="hawb" class="col-sm-3 control-label">Latitude</label>
+				    	<div class="col-sm-9">
+				      		<%= form.text_field :latitude, :class=>"form-control", :placeholder => "Optional", :id => "pick_up_latitude" %>
+				    	</div>
+				  	</div>
+				  	<div class="form-group">
+				    	<label for="hawb" class="col-sm-3 control-label">Longitude</label>
+				    	<div class="col-sm-9">
+				      		<%= form.text_field :longitude, :class=>"form-control", :placeholder => "Optional", :id => "pick_up_longitude" %>
+				    	</div>
+				  	</div>
+				  	<div class="form-group">
+				    	<label for="hawb" class="col-sm-3 control-label"></label>
+				    	<div class="col-sm-9">
+				      		<%= submit_tag 'Pick Up Shipment', :class => 'btn btn-primary', :id => "pick_up_submit" %>
+				    	</div>
+				  	</div>
+				</div>
+				<% end -%>
+			</div>
+			<div class="tab-pane fade" id="update_shipment_tracking">
+				<%= form_for Tracking.new, :url => morgan_hawb_trackings_path(@hawb), :html => {:class=>"form-horizontal", :role=>"form"}, :method=>:post do |form| %>
+				<div class="well">
+					<h5>Updating Shipment Tracking</h5>
+					<div class="form-group">
+			    	<label for="hawb" class="col-sm-3 control-label">New Status</label>
+				    	<div class="col-sm-9">
+			      			<%= form.collection_select :statusid, Status.hawbed.all(:conditions => conditions, :select=>"id, name", :order=>"name ASC"), :id, :name, {}, :class => "form-control" %>
+				    	</div>
+				  	</div>
+				  	<div class="form-group">
+				    	<label for="hawb" class="col-sm-3 control-label">Event Time</label>
+				    	<div class="col-sm-9">
+				      		<%= form.datetime_select :eventtime, {:order=>[:month, :day, :year]}, {:class=>"form-control update_tracking_eventtime", :style => "width:15%;display:inline;"} %>
+				    		<br />
+				      		<br />
+				    		<%= form.time_zone_select :time_zone, nil, {:default => @hawb.origin.time_zone.strip}, {:class => 'form-control'} %>
+				    	</div>
+				  	</div>
+				  	<div class="form-group">
+				    	<label for="hawb" class="col-sm-3 control-label">Internal Remarks</label>
+				    	<div class="col-sm-9">
+				      		<%= form.text_field :remarks, :class=>"form-control" %>
+				    	</div>
+				  	</div>
+				  	<div class="form-group">
+				    	<label for="hawb" class="col-sm-3 control-label">Customer Remarks</label>
+				    	<div class="col-sm-9">
+				      		<%= form.text_field :customerremarks, :class=>"form-control" %>
+				    	</div>
+				  	</div>
+				  	<div class="form-group">
+				    	<label for="hawb" class="col-sm-3 control-label">Latitude</label>
+				    	<div class="col-sm-9">
+				      		<%= form.text_field :latitude, :class=>"form-control", :placeholder => "Optional" %>
+				    	</div>
+				  	</div>
+				  	<div class="form-group">
+				    	<label for="hawb" class="col-sm-3 control-label">Longitude</label>
+				    	<div class="col-sm-9">
+				      		<%= form.text_field :longitude, :class=>"form-control", :placeholder => "Optional" %>
+				    	</div>
+				  	</div>
+				  	<div class="form-group">
+				    	<label for="hawb" class="col-sm-3 control-label"></label>
+				    	<div class="col-sm-9">
+				      		<%= submit_tag 'Update Shipment Tracking', :class => 'btn btn-primary', :id => "update_shipment_tracking_submit" %>
+				    	</div>
+				  	</div>
+				</div>
+				<% end -%>
+			</div>
+			<div class="tab-pane fade" id="deliver_shipment">
+				<%= form_for Tracking.new, :url => morgan_hawb_trackings_path(@hawb), :html => {:class=>"form-horizontal", :role=>"form"}, :method=>:post do |form| %>
+				<div class="well">
+					<h5>Delivering Shipment</h5>
+				  	<div class="form-group">
+				    	<label for="hawb" class="col-sm-3 control-label">Event Time</label>
+				    	<div class="col-sm-9">
+				      		<%= form.datetime_select :eventtime, {:order=>[:month, :day, :year]}, {:class=>"form-control delivery_eventtime", :style => "width:15%;display:inline;"} %>
+				    		<br />
+				      		<br />
+				    		<%= form.time_zone_select :time_zone, nil, {:default => @hawb.destination.timezone.strip}, {:class => 'form-control'} %>
+				    	</div>
+				  	</div>
+				  	<%= form.hidden_field :statusid, :value => "25" %>
+				  	<div class="form-group">
+				    	<label for="hawb" class="col-sm-3 control-label">POD Name</label>
+				    	<div class="col-sm-9">
+				      		<%= form.text_field :podname, :class => "form-control", :value => @hawb.podname %>
+				    	</div>
+				  	</div>
+				  	<div class="form-group">
+				    	<label for="hawb" class="col-sm-3 control-label">Delivery Wait Time</label>
+				    	<div class="col-sm-9">
+				      		<%= form.text_field :delivery_wait_time, :class => "form-control", :value => @hawb.delivery_wait_time %>
+				    	</div>
+				  	</div>
+				  	<div class="form-group">
+				    	<label for="hawb" class="col-sm-3 control-label">Internal Remarks</label>
+				    	<div class="col-sm-9">
+				      		<%= form.text_field :remarks, :class=>"form-control" %>
+				    	</div>
+				  	</div>
+				  	<div class="form-group">
+				    	<label for="hawb" class="col-sm-3 control-label">Customer Remarks</label>
+				    	<div class="col-sm-9">
+				      		<%= form.text_field :customerremarks, :class=>"form-control" %>
+				    	</div>
+				  	</div>
+				  	<div class="form-group">
+				    	<label for="hawb" class="col-sm-3 control-label">Latitude</label>
+				    	<div class="col-sm-9">
+				      		<%= form.text_field :latitude, :class=>"form-control", :placeholder => "Optional" %>
+				    	</div>
+				  	</div>
+				  	<div class="form-group">
+				    	<label for="hawb" class="col-sm-3 control-label">Longitude</label>
+				    	<div class="col-sm-9">
+				      		<%= form.text_field :longitude, :class=>"form-control", :placeholder => "Optional" %>
+				    	</div>
+				  	</div>
+				  	<div class="form-group">
+				    	<label for="hawb" class="col-sm-3 control-label"></label>
+				    	<div class="col-sm-9">
+				      		<%= submit_tag 'Deliver Shipment', :class => 'btn btn-primary', :id => "delivery_submit" %>
+				    	</div>
+				  	</div>
+				</div>
+				<% end -%>
+			</div>
+			<div class="tab-pane fade" id="attempted_cancelled">
+				<div class="well">
+					<h5>Set HAWB as Attempted/Cancelled?</h5>
+					<%= form_for Tracking.new, :url => morgan_hawb_trackings_path(@hawb), :html => {:class=>"form-horizontal", :role=>"form"}, :method=>:post do |form| %>
+						<%= form.hidden_field :statusid, :value => "17" %>
+						<div class="form-group">
+					    	<label for="hawb" class="col-sm-3 control-label">Event Time</label>
+					    	<div class="col-sm-9">
+					      		<%= form.datetime_select :eventtime, {:order=>[:month, :day, :year]}, {:class=>"form-control", :style => "width:15%;display:inline;"} %>
+					    		<br />
+					      		<br />
+					    		<%= form.time_zone_select :time_zone, nil, {:default => @hawb.destination.timezone.strip}, {:class => 'form-control'} %>
+					    	</div>
+					  	</div>
+						<div class="form-group">
+					    	<label for="hawb" class="col-sm-3 control-label">Reason</label>
+					    	<div class="col-sm-9">
+					      		<%= form.text_field :remarks, :class=>"form-control" %>
+					    	</div>
+					  	</div>
+						<div class="form-group">
+					    	<label for="hawb" class="col-sm-3 control-label"></label>
+					    	<div class="col-sm-9">
+					      		<%= submit_tag 'Submit Attempted/Cancelled', :class => 'btn btn-primary' %>
+					    	</div>
+					  	</div>
+					<% end -%>
+				</div>
+			</div>
+		</div>
+		<hr />
+		<% Time.zone = 'UTC' %>
+		<table class="table">
+  			<tr>
+    			<th></th>
+    			<th>Status</th>
+    			<th>Remarks <span class="label label-danger">Internal</span>/<span class="label label-info">Customer</span></th>
+    			<th>Location</th>
+			</tr>
+  			<% @tracks.each_with_index do |tracking, idx| %>
+      			<tr>
+        			<td><%= idx + 1 %></td>
+    				<td><% if tracking.tracked_at %>
+    						<%= tracking.tracked_at.in_time_zone(@hawb.origin.timezone.strip).strftime("%b %d, %Y at %H:%M %Z") %>
+    					<% else %>
+    						<%= tracking.eventtime.strftime("%b %d, %Y at %H:%M") %>
+    					<% end -%>	
+    					<br />
+    					<%= link_to tracking.status.name, edit_morgan_hawb_tracking_path(@hawb, tracking) %>
+    				</td>
+        			<td>
+        				<% if tracking.remarks  %>
+							<span class="label label-danger"><%= tracking.remarks %></span>
+						<% end %>
+						<% if tracking.customerremarks  %>
+							<span class="label label-info"><%= tracking.customerremarks %></span>
+						<% end %>
+					</td>
+        			<td><%= tracking.locality %></td>
+      			</tr>
+  			<% end %>
+		</table>
+	</div>
+	<div class="col-xs-6 col-md-4">
+		<p>
+			<% Time.zone = 'Pacific Time (US & Canada)' %>
+			<strong>Tracking Status</strong> <span class="label label-info"><%= @hawb.status.upcase %></span>
+		</p>
+		<table class="table well">
+	    	<thead>
+	    		<tr>
+	    			<th>Shipper</th>
+	    			<th>Consignee</th>
+	    			<th>Bill To</th>
+	    			<th>Customer</th>
+	    		</tr>
+	    	</thead>
+	    	<tbody>
+	    		<tr>
+	    			<td><a href="#" rel="popover" data-original-title="<center>SHIPPER INFORMATION</center>" data-placement="left" data-trigger="hover" data-content="<%= @hawb.shipper.name.upcase %><br /><%= @hawb.shipper.address1.upcase %><br /><%= @hawb.shipper.city.upcase %>, <%= @hawb.shipper.state.upcase %> <%= @hawb.shipper.zip %><br /><%= @hawb.shipper.phonenbr %>"><%= @hawb.shipper.number.upcase %></a></td>
+	    			<td><a href="#" rel="popover" data-original-title="<center>CONSIGNEE INFORMATION</center>" data-placement="left" data-trigger="hover" data-content="<%= @hawb.consignee.name.upcase %><br /><%= @hawb.consignee.address1.upcase %><br /><%= @hawb.consignee.city.upcase %>, <%= @hawb.consignee.state.upcase %> <%= @hawb.consignee.zip %><br /><%= @hawb.consignee.phonenbr %>"><%= @hawb.consignee.number.upcase %></a></td>
+	    			<td><a href="#" rel="popover" data-original-title="<center>BILLER INFORMATION</center>" data-placement="left" data-trigger="hover" data-content="<%= @hawb.biller.name.upcase %><br /><%= @hawb.biller.address1.upcase %><br /><%= @hawb.biller.city.upcase %>, <%= @hawb.biller.state.upcase %> <%= @hawb.biller.zip %><br /><%= @hawb.biller.phonenbr %>"><%= @hawb.biller.number.upcase %></a></td>
+	    			<td><a href="#" rel="popover" data-original-title="<center>CUSTOMER INFORMATION</center>" data-placement="left" data-trigger="hover" data-content="<%= @hawb.customer.name.upcase %><br /><%= @hawb.customer.address1.upcase %><br /><%= @hawb.customer.city.upcase %>, <%= @hawb.customer.state.upcase %> <%= @hawb.customer.zip %><br /><%= @hawb.customer.phonenbr %>"><%= @hawb.customer.number.upcase %></a></td>
+	    		</tr>
+	    	</tbody>
+	    </table>
+	    <hr />
+	    <p><strong>3rd Party Tracking</strong></p>
+		<div class="well">
+			 <button type="button" class="btn btn-info" data-toggle="modal" data-target="#thirdPartyTrackingModal">Add 3rd Party Tracking</button>
+		</div>
+		<% if @hawb.tracking_numbers.length == 0 %>
+			<p>There are currently no Third Party Trackings.</p>
+		<% else %>
+			<ul class="list-group">
+				<% @hawb.tracking_numbers.each do |tracking_number| %>
+					<li class="list-group-item"><%= generate_third_party_tracking_link(tracking_number.carrier_name, tracking_number.tracking_number) %></li>
+			  	<% end %>
+			</ul>
+		<% end -%>
+	</div>
+</div>
+
